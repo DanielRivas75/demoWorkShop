@@ -1,0 +1,138 @@
+# Starter pipeline
+# https://aka.ms/yaml
+
+# trigger:
+# - '*'
+
+variables:
+  buildConfiguration: 'Release'
+  releaseBranchName: 'release'
+
+schedules:
+- cron: '0 3 * * *'
+  displayName: Deploy every day at 3 A.M.
+  branches:
+    include:
+    - release
+  always: 'false'
+
+stages:
+- stage: 'Build'
+  displayName: 'Build the web application'
+  jobs: 
+  - job: 'Build'
+    displayName: 'Build job'
+    pool:
+      vmImage: 'ubuntu-18.04'
+      demands:
+      - npm
+
+    variables:
+      wwwrootDir: 'Tailspin.SpaceGame.Web/wwwroot'
+      dotnetSdkVersion: '3.1.300'
+
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET Core SDK $(dotnetSdkVersion)'
+      inputs:
+        version: '$(dotnetSdkVersion)'
+
+    #- script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
+    #  displayName: 'Write build info'
+    #  workingDirectory: $(wwwrootDir)
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore project dependencies'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build the project - $(buildConfiguration)'
+      inputs:
+        command: 'build'
+        arguments: '--no-restore --configuration $(buildConfiguration)'
+        projects: '**/*.csproj'
+
+#    - task: VSTest@2
+#      inputs:
+#        testSelector: 'testAssemblies'
+#        testAssemblyVer2: |
+#          **\$(BuildConfiguration)\*test*.dll
+#          !**\obj\**
+#        searchFolder: '$(System.DefaultWorkingDirectory)'
+
+#    - task: CopyFiles@2
+#      displayName: 'Copy Files to: $(build.artifactstagingdirectory)/TestAssemblies'
+#      inputs:
+#        SourceFolder: '$(Build.SourcesDirectory)/test/PartsUnlimited.SeleniumTests/bin/$(BuildConfiguration)'
+#        TargetFolder: '$(build.artifactstagingdirectory)/TestAssemblies'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish the project - $(buildConfiguration)'
+      inputs:
+        command: 'publish'
+        projects: '**/*.csproj'
+        publishWebProjects: false
+        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/$(buildConfiguration)'
+        zipAfterPublish: true
+
+    - publish: '$(Build.ArtifactStagingDirectory)'
+      artifact: drop
+
+      
+
+- stage: 'Dev'
+  displayName: 'Deploy to the dev environment'
+  dependsOn: Build
+  condition:
+      succeeded()
+  jobs:
+  - template: templates/build.yml
+    parameters:
+      buildConfiguration: 'Release'
+      appName: '$(WebAppNameDev)'
+
+- stage: 'Test'
+  displayName: 'Deploy to the Test environment'
+  dependsOn: Dev
+  # condition: eq(variables['Build.Reason'], 'Schedule')
+  jobs:
+  - template: templates/build.yml
+    parameters:
+      buildConfiguration: 'Release'
+      appName: '$(WebAppNameTest)'
+
+- stage: 'Staging'
+  displayName: 'Deploy to the Staging environment'
+  dependsOn: Test
+  jobs:
+    - deployment: Deploy
+      pool:
+        vmImage: 'ubuntu-18.04'
+      environment: dev
+      variables:
+      - group: Release
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - download: current
+              artifact: drop
+            - task: AzureWebApp@1
+              displayName: 'Azure App Service $(buildConfiguration): website'
+              inputs:
+                azureSubscription: 'Resource Manager - Web App Master'
+                appType: 'webAppLinux'
+                appName: '$(WebAppNameStaging)'
+                package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+
+            - task: AzureAppServiceManage@0
+              displayName: 'Swap deployment slots'
+              inputs:
+                azureSubscription: 'Resource Manager - Web App Master'
+                resourceGroupName: 'web-master-app-rg'
+                webAppName: '$(WebAppNameStaging)'
+                sourceSlot: 'swap'
+                targetSlot: 'production'
+                action: 'Swap Slots'
