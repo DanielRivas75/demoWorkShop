@@ -54,19 +54,6 @@ stages:
         arguments: '--no-restore --configuration $(buildConfiguration)'
         projects: '**/*.csproj'
 
-#    - task: VSTest@2
-#      inputs:
-#        testSelector: 'testAssemblies'
-#        testAssemblyVer2: |
-#          **\$(BuildConfiguration)\*test*.dll
-#          !**\obj\**
-#        searchFolder: '$(System.DefaultWorkingDirectory)'
-
-#    - task: CopyFiles@2
-#      displayName: 'Copy Files to: $(build.artifactstagingdirectory)/TestAssemblies'
-#      inputs:
-#        SourceFolder: '$(Build.SourcesDirectory)/test/PartsUnlimited.SeleniumTests/bin/$(BuildConfiguration)'
-#        TargetFolder: '$(build.artifactstagingdirectory)/TestAssemblies'
 
     - task: DotNetCoreCLI@2
       displayName: 'Publish the project - $(buildConfiguration)'
@@ -122,17 +109,8 @@ stages:
             - task: AzureWebApp@1
               displayName: 'Azure App Service $(buildConfiguration): website'
               inputs:
-                azureSubscription: 'Resource Manager - Web App Master'
+                azureSubscription: 'Resource Manager - Web App'
                 appType: 'webAppLinux'
                 appName: '$(WebAppNameStaging)'
                 package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
 
-            - task: AzureAppServiceManage@0
-              displayName: 'Swap deployment slots'
-              inputs:
-                azureSubscription: 'Resource Manager - Web App Master'
-                resourceGroupName: 'web-master-app-rg'
-                webAppName: '$(WebAppNameStaging)'
-                sourceSlot: 'swap'
-                targetSlot: 'production'
-                action: 'Swap Slots'
