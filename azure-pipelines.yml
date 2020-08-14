@@ -1,8 +1,5 @@
-# Starter pipeline
-# https://aka.ms/yaml
-
-# trigger:
-# - '*'
+trigger:
+- '*'
 
 variables:
   buildConfiguration: 'Release'
@@ -115,6 +112,3 @@ stages:
       buildConfiguration: 'Release'
       appName: '$(WebAppNameStagin)'
       env: 'stagin'
-
-
-
