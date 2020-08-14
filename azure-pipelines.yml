@@ -75,25 +75,6 @@ stages:
   condition:
       succeeded()
   jobs:
-  - template: templates/build.yml
-    parameters:
-      buildConfiguration: 'Release'
-      appName: '$(WebAppNameDev)'
-
-- stage: 'Test'
-  displayName: 'Deploy to the Test environment'
-  dependsOn: Dev
-  # condition: eq(variables['Build.Reason'], 'Schedule')
-  jobs:
-  - template: templates/build.yml
-    parameters:
-      buildConfiguration: 'Release'
-      appName: '$(WebAppNameTest)'
-
-- stage: 'Staging'
-  displayName: 'Deploy to the Staging environment'
-  dependsOn: Test
-  jobs:
     - deployment: Deploy
       pool:
         vmImage: 'ubuntu-18.04'
@@ -111,6 +92,29 @@ stages:
               inputs:
                 azureSubscription: 'WebAppCnn'
                 appType: 'webAppLinux'
-                appName: '$(WebAppNameStaging)'
+                appName: '$(WebAppNameDev)'
                 package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+
+- stage: 'Test'
+  displayName: 'Deploy to the Test environment'
+  dependsOn: Dev
+  jobs:
+  - template: templates/build.yml
+    parameters:
+      buildConfiguration: 'Release'
+      appName: '$(WebAppNameTest)'
+      env: 'test'
+
+- stage: 'Staging'
+  displayName: 'Deploy to the Staging environment'
+  dependsOn: Test
+# condition: eq(variables['Build.Reason'], 'Schedule')
+  jobs:
+  - template: templates/build.yml
+    parameters:
+      buildConfiguration: 'Release'
+      appName: '$(WebAppNameStagin)'
+      env: 'stagin'
+
+
 
